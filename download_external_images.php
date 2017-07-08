@@ -17,15 +17,22 @@ include($phpbb_root_path . 'common.' . $phpEx);
 
 define('EXTERNAL_IMAGES_TABLE',				$table_prefix . 'external_images');
 define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
-define('FILE_SAVE_PATH',					$phpbb_root_path . '/files/ext/');	
+define('FILE_SAVE_PATH',					$phpbb_root_path . '/images/ext/');	
+define('MINIMUM_FILE_SIZE', 3000);
 
 // Name of script - change if you use a different name for the script
 $scriptname = 'download_external_images.php';
 // Specify the number of downloads to handle in one run - reduce if you receive a timeout from server
-$interval = 20;
+$interval = 20000;
+
+
+if (!file_exists(FILE_SAVE_PATH))
+{
+	mkdir(FILE_SAVE_PATH, 755);
+}
 
 // read id of last image downloaded
-if (isset($config['last_image_id']))
+if (isset($config['last_dl_image_id']))
 {
     $last_image_id = $config['last_dl_image_id'];
 }
@@ -61,19 +68,47 @@ while ($row = $db->sql_fetchrow($result))
 	$url = $row['url'];
 	$host = $row['host'];
 	$status = $row['status'];
+	$size = $row['size'];
 
-	if ($status == 0)
+
+	$local_file_name = md5("$url");
+	$file_path = FILE_SAVE_PATH . $local_file_name;
+	if (file_exists($file_path))
 	{
+		if ($status != 200) 
+		{
+			unlink($file_path);
+			echo("DELETED BAD STATUS existing file status $status for $url \n");
+		}
+		else if ($size < MINIMUM_FILE_SIZE) 
+		{
+			unlink($file_path);
+			echo("DELETED TOO SMALL $size  existing file status $status for $url \n");
+		}
+	}
+	if (!file_exists($file_path))
+	{
+		echo("download $image_id : $url ");
 		$fetch_result = get_remote_data($url, false, true); 
 		$download_status = $fetch_result['info']['http_code'];
 		$size = $fetch_result['info']['size_download'];
 
-		if ($download_status = 200)
+		if (($download_status == 200) && ($size > MINIMUM_FILE_SIZE))
 		{
 			// save our local copy of the file
-			$local_file_name = md5("$url");
-5			$file_path = FILE_SAVE_PATH . $local_file_name;
 			file_put_contents($file_path, $fetch_result['data']);
+			echo("status OK $download_status for $image_id : $url\n");
+		}
+		else
+		{
+			if ($download_status == 200)
+			{
+				echo(" status OK $download_status : but file too small $size\n");
+			}
+			else
+			{
+				echo("status $download_status FAIL\n");
+			}
 		}
 
 		$sql_ary = array(
@@ -83,11 +118,10 @@ while ($row = $db->sql_fetchrow($result))
 			);
 
 		$db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE .' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . ' WHERE ext_image_id = ' . $image_id);
-		echo("download status $download_status for $image_id $file_path\n");
 	}
 	else
 	{
-		echo("existing status $status for $image_id \n");
+		echo("existing file ID $image_id, status $status, size $size, for $url \n");
 	}
 }
 $db->sql_freeresult($result);
@@ -119,7 +153,8 @@ function get_remote_data($url, $post_paramtrs=false,               $return_full_
 					//We'd better to use the above command, because the following command gave some weird STATUS results..
 					//$header[0]= $user_agent="User-Agent: Mozilla/5.0 (Windows NT 6.1; rv:33.0) Gecko/20100101 Firefox/33.0";  $header[]="Cookie:CookieName1=Value;"; $header[]="Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5";  $header[]="Cache-Control: max-age=0"; $header[]="Connection: keep-alive"; $header[]="Keep-Alive: 300"; $header[]="Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7"; $header[] = "Accept-Language: en-us,en;q=0.5"; $header[] = "Pragma: ";  curl_setopt($c, CURLOPT_HEADER, true);     curl_setopt($c, CURLOPT_HTTPHEADER, $header);
 					
-	curl_setopt($c, CURLOPT_MAXREDIRS, 10); 
+//	curl_setopt($c, CURLOPT_MAXREDIRS, 10); 
+	curl_setopt($c, CURLOPT_MAXREDIRS, 0); 
 	//if SAFE_MODE or OPEN_BASEDIR is set,then FollowLocation cant be used.. so...
 	$follow_allowed= ( ini_get('open_basedir') || ini_get('safe_mode')) ? false:true;  if ($follow_allowed){curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);}
 	curl_setopt($c, CURLOPT_CONNECTTIMEOUT, 9);

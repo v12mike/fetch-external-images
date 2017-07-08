@@ -23,7 +23,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 	// Name of script - change if you use a different name for the script
 	$scriptname = 'extract_external_links.php';
 	// Specify the number of attachments to handle in one run - reduce if you receive a timeout from server
-	$interval = 10000;
+	$interval = 50000;
 
 
 	// create the database tables if they don't exist
@@ -60,7 +60,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 	}
 
 	// count number of posts with external links to process
-	$sql = 'SELECT COUNT(post_id) AS num_attach FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int)$last_post_id . ' AND (LOWER(post_text) LIKE (\'%[img:%]http%photobucket%\') OR LOWER(post_text) LIKE \'%<img %src=%photobucket%\' )';
+	$sql = 'SELECT COUNT(post_id) AS num_attach FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int)$last_post_id . ' AND (LOWER(post_text) LIKE (\'%[img:%]http%\') OR LOWER(post_text) LIKE \'%<img %src=\"http%\' )';
 	$result = $db->sql_query($sql);
 	$posts_count = (int) $db->sql_fetchfield('num_attach', false, $result);
 	$db->sql_freeresult($result);
@@ -73,7 +73,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 	echo("Candidate posts to check=$posts_count, maximum number to check each run=$interval, starting after post_id=$last_post_id\n");
 
 	// read required information from posts table
-	$sql = 'SELECT post_id, post_text FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int) $last_post_id . ' AND (LOWER(post_text) LIKE \'%[img:%]http%photobucket%\' OR LOWER(post_text)  LIKE \'%<img %src=%photobucket%\') ORDER BY post_id ASC';
+	$sql = 'SELECT post_id, post_text FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int) $last_post_id . ' AND (LOWER(post_text) LIKE \'%[img:%]http%\' OR LOWER(post_text)  LIKE \'%<img %src=\"http%\') ORDER BY post_id ASC';
 	$posts_result = $db->sql_query_limit($sql, $interval);
 
 	// how many in this run?
@@ -124,7 +124,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 					$ext = $matches[4][$loop];
 
 					// See if the image url is already in the database
-					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $url . '\'';
+					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
 					$result1 = $db->sql_query_limit($sql, 1);
 					if ($row = $db->sql_fetchrow($result1))
 					{
@@ -136,7 +136,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 						$db->sql_freeresult($result1);
 						// add it
 						$sql = 'INSERT INTO ' . EXTERNAL_IMAGES_TABLE . $db->sql_build_array('INSERT', array(
-							'url'       => $url,
+							'url'       => htmlentities($url, ENT_QUOTES),
 							'ext'       => $ext,
 							'host'      => $host,
 							'status'    => 0,
@@ -145,7 +145,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 						$images_added++;
 
 						// fetch again to get the id
-						$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $url . '\'';
+						$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
 						$result2 = $db->sql_query_limit($sql, 1);
 						if ($row = $db->sql_fetchrow($result2))
 						{
@@ -179,7 +179,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 					$ext = $matches[3][$loop];
 
 					// See if the image url is already in the database
-					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $url . '\'';
+					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
 					$result3 = $db->sql_query_limit($sql, 1);
 					if ($row = $db->sql_fetchrow($result3))
 					{
@@ -191,7 +191,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 						$db->sql_freeresult($result3);
 						// add it
 						$sql = 'INSERT INTO ' . EXTERNAL_IMAGES_TABLE . $db->sql_build_array('INSERT', array(
-							'url'       => $url,
+							'url'       => htmlentities($url, ENT_QUOTES),
 							'ext'       => $ext,
 							'host'      => $host,
 							'status'    => 0,
@@ -200,7 +200,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 						$images_added++;
 
 						// fetch again to get the id
-						$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $url . '\'';
+						$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
 						$result4 = $db->sql_query_limit($sql, 1);
 						if ($row = $db->sql_fetchrow($result4))
 						{
