@@ -1,8 +1,7 @@
 <?php
 /**
 * This script will scan all of the text in posts looking for 
-* inline images which link to photobucket.com and add them to 
-* tables in the database. 
+* inline images and add them to new tables in the database. 
 */
 
 /**
