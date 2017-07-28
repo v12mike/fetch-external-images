@@ -18,6 +18,7 @@ define('IN_PHPBB', true);
 
 define('EXTERNAL_IMAGES_TABLE',				$table_prefix . 'external_images');
 define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
+define('MAX_URL_LEN',				500);
 
 	// Name of script - change if you use a different name for the script
 	$scriptname = 'extract_external_links.php';
@@ -39,7 +40,7 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 		ext_image_id INTEGER PRIMARY KEY AUTO_INCREMENT,
 		status INT(10),
 		size INT(10),
-		url VARCHAR(500),
+		url VARCHAR(MAX_URL_LEN),
 		host VARCHAR(100),
 		file VARCHAR(100),
 		ext VARCHAR(10)
@@ -121,6 +122,10 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 					$url = $matches[2][$loop];
 					$host = $matches[3][$loop];
 					$ext = $matches[4][$loop];
+					
+					// skip this link if url exceeds database capacity
+					if (strlen($url) > MAX_URL_LEN)
+						continue;
 
 					// See if the image url is already in the database
 					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
@@ -176,6 +181,10 @@ define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 					$url = $matches[1][$loop];
 					$host = $matches[2][$loop];
 					$ext = $matches[3][$loop];
+					
+					// skip this link if url exceeds database capacity
+					if (strlen($url) > MAX_URL_LEN)
+						continue;
 
 					// See if the image url is already in the database
 					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
