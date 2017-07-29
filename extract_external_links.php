@@ -40,7 +40,7 @@ define('MAX_URL_LEN',				500);
 		ext_image_id INTEGER PRIMARY KEY AUTO_INCREMENT,
 		status INT(10),
 		size INT(10),
-		url VARCHAR(MAX_URL_LEN),
+		url VARCHAR(' . MAX_URL_LEN . '),
 		host VARCHAR(100),
 		file VARCHAR(100),
 		ext VARCHAR(10)
