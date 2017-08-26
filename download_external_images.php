@@ -24,6 +24,10 @@ define('MINIMUM_FILE_SIZE', 				3000);
 define('MAXIMUM_FILES_TO_FETCH', 			10000);
 // number of redirects: set to 0 for no redirects (recommended) or 10 to allow redirects
 define('MAXIMUM_REDIRECTS', 				10);
+// only images with a url containing this string will be downloaded
+//define('URL_FILTER', 				'http');				// any host
+define('URL_FILTER', 				'.photobucket.com/');	// only photobucket.com
+
 // Name of script - change if you use a different name for the script
 $scriptname = 'download_external_images.php';
 
@@ -71,6 +75,10 @@ while ($row = $db->sql_fetchrow($result))
 	$local_file_name = md5("$url");
 	$file_path = FILE_SAVE_PATH . $local_file_name;
 
+
+	if ((strpos($url, URL_FILTER) == false))
+		continue;
+
 	if (file_exists($file_path))
 	{
 		if ($status != 200) 
@@ -85,7 +93,7 @@ while ($row = $db->sql_fetchrow($result))
 //		}
 	}
 
-	if (!file_exists($file_path))
+	if (!file_exists($file_path)) 
 	{
 		$c = curl_init();curl_setopt($c, CURLOPT_URL, $url);
 		curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
