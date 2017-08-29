@@ -10,7 +10,6 @@ define('IN_PHPBB', true);
 $phpbb_root_path = (defined('PHPBB_ROOT_PATH')) ? PHPBB_ROOT_PATH : '../';
 $phpEx = substr(strrchr(__FILE__, '.'), 1);
 include($phpbb_root_path . 'common.' . $phpEx);
-
 define('EXTERNAL_IMAGES_TABLE',				$table_prefix . 'external_images');
 define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 define('FILE_SAVE_PATH',					$phpbb_root_path . '/images/ext/');	
@@ -21,11 +20,10 @@ define('MAXIMUM_FILES_TO_FETCH', 			10000);
 // number of redirects: set to 0 for no redirects (recommended) or 10 to allow redirects
 define('MAXIMUM_REDIRECTS', 				10);
 // only images with a url containing this string will be downloaded
-//define('URL_FILTER', 				'http');				// any host
-define('URL_FILTER', 				'.photobucket.com/');	// only photobucket.com
+define('URL_FILTER', 				'http');				// any host
+//define('URL_FILTER', 				'.photobucket.com/');	// only photobucket.com
 // Name of script - change if you use a different name for the script
 $scriptname = 'download_external_images.php';
-
 if (!file_exists(FILE_SAVE_PATH))
 {
 	mkdir(FILE_SAVE_PATH, 755);
@@ -66,10 +64,11 @@ while ($row = $db->sql_fetchrow($result))
 	$size = $row['size'];
 	$local_file_name = md5("$url");
 	$file_path = FILE_SAVE_PATH . $local_file_name;
-
 	if ((strpos($url, URL_FILTER) === false))
+	{
+		echo("Ignoring $url\n");
 		continue;
-
+	}
 	if (file_exists($file_path))
 	{
 		if ($status != 200) 
@@ -146,7 +145,7 @@ while ($row = $db->sql_fetchrow($result))
 			$mime_type = $finfo->buffer($data);
 			if ((strpos($mime_type, 'image/') !== 0))
 			{
-				echo("status OK $download_status : but bad mime-type : $url\n");
+				echo("status OK $download_status : but bad mime-type: $mime_type : $url\n");
 			}
 			elseif ($size < MINIMUM_FILE_SIZE)
 			{
@@ -188,4 +187,3 @@ else
 	set_config('last_dl_image_id', $image_id);
 	echo("More to do, please run the script again\n\nS");
 }
-
