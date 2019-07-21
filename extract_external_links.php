@@ -16,6 +16,8 @@ define('IN_PHPBB', true);
 define('EXTERNAL_IMAGES_TABLE',				$table_prefix . 'external_images');
 define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 define('MAX_URL_LEN',				500);
+define('SUPPORT_PHPBB_31_FORMAT',	0);
+
 	// Name of script - change if you use a different name for the script
 	$scriptname = 'extract_external_links.php';
 	// Specify the number of attachments to handle in one run - reduce if you receive a timeout from server
@@ -59,7 +61,14 @@ define('MAX_URL_LEN',				500);
 	$post_id = 0;
 	echo("Candidate posts to check=$posts_count, maximum number to check each run=$interval, starting after post_id=$last_post_id\n");
 	// read required information from posts table
-	$sql = 'SELECT post_id, post_text FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int) $last_post_id . ' AND (LOWER(post_text) LIKE \'%[img:%]http%\' OR LOWER(post_text)  LIKE \'%<img %src=\"http%\') ORDER BY post_id ASC';
+    if (SUPPORT_PHPBB_31_FORMAT)
+    {
+        $sql = 'SELECT post_id, post_text FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int) $last_post_id . ' AND (LOWER(post_text) LIKE \'%[img:%]http%\' OR LOWER(post_text)  LIKE \'%<img %src=\"http%\') ORDER BY post_id ASC';
+    }
+    else
+    {
+        $sql = 'SELECT post_id, post_text FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int) $last_post_id . ' AND (LOWER(post_text)  LIKE \'%<img %src=\"http%\') ORDER BY post_id ASC';
+    }
 	$posts_result = $db->sql_query_limit($sql, $interval);
 	// how many in this run?
 	$actual_num = $db->sql_affectedrows($posts_result);
@@ -92,65 +101,68 @@ define('MAX_URL_LEN',				500);
 				continue;
 			}
 			$db->sql_freeresult($res);
-			// check for image links in the first format
-			$post_text = html_entity_decode($post_text, ENT_QUOTES);
-			if (preg_match_all('~\[img:([^\]]+?)\](http[^\/]+?\/\/([^\[|^\/]+?)\/[^\.]+?\.([a-z]+?))\[\/img:\1\]~i', $post_text, $matches))
-			{
-				$num_links = count($matches[0]);
-				for ($loop = 0; $loop < $num_links; $loop++)
-				{
-					$stat++;
-					$links_found++;
-					$link = $matches[0][$loop]; 
-					$id = $matches[1][$loop]; 
-					$url = $matches[2][$loop];
-					$host = $matches[3][$loop];
-					$ext = $matches[4][$loop];
-					
-					// skip this link if url exceeds database capacity
-					if (strlen($url) > MAX_URL_LEN)
-					{
-						echo('X');
-						continue;
-					}
-					// See if the image url is already in the database
-					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
-					$result1 = $db->sql_query_limit($sql, 1);
-					if ($row = $db->sql_fetchrow($result1))
-					{
-						$image_id = $row['ext_image_id'];
-						$db->sql_freeresult($result1);
-					}
-					else
-					{
-						$db->sql_freeresult($result1);
-						// add it
-						$sql = 'INSERT INTO ' . EXTERNAL_IMAGES_TABLE . $db->sql_build_array('INSERT', array(
-							'url'       => htmlentities($url, ENT_QUOTES),
-							'ext'       => $ext,
-							'host'      => $host,
-							'status'    => 0,
-							));
-						$db->sql_query($sql);
-						$images_added++;
-						// fetch again to get the id
-						$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
-						$result2 = $db->sql_query_limit($sql, 1);
-						if ($row = $db->sql_fetchrow($result2))
-						{
-							$image_id = $row['ext_image_id'];
-						}
-						$db->sql_freeresult($result2);
-					}
-					$sql = 'INSERT INTO ' . EXTERNAL_IMAGE_LINKS_TABLE . $db->sql_build_array('INSERT', array(
-						'ext_image_id'  => $image_id,
-						'orig_link' => $link,
-						'post_id'   => $post_id,
-						));
-					$db->sql_query($sql);
-					$links_added++;
-				}
-			}
+            if (SUPPORT_PHPBB_31_FORMAT)
+            {
+                // check for image links in the first format
+                $post_text = html_entity_decode($post_text, ENT_QUOTES);
+                if (preg_match_all('~\[img:([^\]]+?)\](http[^\/]+?\/\/([^\[|^\/]+?)\/[^\.]+?\.([a-z]+?))\[\/img:\1\]~i', $post_text, $matches))
+                {
+                    $num_links = count($matches[0]);
+                    for ($loop = 0; $loop < $num_links; $loop++)
+                    {
+                        $stat++;
+                        $links_found++;
+                        $link = $matches[0][$loop]; 
+                        $id = $matches[1][$loop]; 
+                        $url = $matches[2][$loop];
+                        $host = $matches[3][$loop];
+                        $ext = $matches[4][$loop];
+                        
+                        // skip this link if url exceeds database capacity
+                        if (strlen($url) > MAX_URL_LEN)
+                        {
+                            echo('X');
+                            continue;
+                        }
+                        // See if the image url is already in the database
+                        $sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
+                        $result1 = $db->sql_query_limit($sql, 1);
+                        if ($row = $db->sql_fetchrow($result1))
+                        {
+                            $image_id = $row['ext_image_id'];
+                            $db->sql_freeresult($result1);
+                        }
+                        else
+                        {
+                            $db->sql_freeresult($result1);
+                            // add it
+                            $sql = 'INSERT INTO ' . EXTERNAL_IMAGES_TABLE . $db->sql_build_array('INSERT', array(
+                                'url'       => htmlentities($url, ENT_QUOTES),
+                                'ext'       => $ext,
+                                'host'      => $host,
+                                'status'    => 0,
+                                ));
+                            $db->sql_query($sql);
+                            $images_added++;
+                            // fetch again to get the id
+                            $sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
+                            $result2 = $db->sql_query_limit($sql, 1);
+                            if ($row = $db->sql_fetchrow($result2))
+                            {
+                                $image_id = $row['ext_image_id'];
+                            }
+                            $db->sql_freeresult($result2);
+                        }
+                        $sql = 'INSERT INTO ' . EXTERNAL_IMAGE_LINKS_TABLE . $db->sql_build_array('INSERT', array(
+                            'ext_image_id'  => $image_id,
+                            'orig_link' => $link,
+                            'post_id'   => $post_id,
+                            ));
+                        $db->sql_query($sql);
+                        $links_added++;
+                    }
+                }
+            }
 			// check for image links in the second format
 			$post_text = html_entity_decode($post_text, ENT_QUOTES);
 			if (preg_match_all('~<img src=\"(http[^\/]+?\/\/([^\/]+)?\/.+?[^\.]+?(\.[a-z]+?))\">~i', $post_text, $matches))
@@ -165,11 +177,17 @@ define('MAX_URL_LEN',				500);
 					$host = $matches[2][$loop];
 					$ext = $matches[3][$loop];
 					
+                    $encoded_url = htmlentities($url, ENT_QUOTES);
 					// skip this link if url exceeds database capacity
-					if (strlen($url) > MAX_URL_LEN)
+					$test = strlen($encoded_url);
+                    $test2 = mb_strlen($encoded_url, "UTF-8");
+					if (strlen($encoded_url) > MAX_URL_LEN)
+                    {
+                        echo('X');
 						continue;
+                    }
 					// See if the image url is already in the database
-					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
+					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $encoded_url . '\'';
 					$result3 = $db->sql_query_limit($sql, 1);
 					if ($row = $db->sql_fetchrow($result3))
 					{
@@ -181,7 +199,7 @@ define('MAX_URL_LEN',				500);
 						$db->sql_freeresult($result3);
 						// add it
 						$sql = 'INSERT INTO ' . EXTERNAL_IMAGES_TABLE . $db->sql_build_array('INSERT', array(
-							'url'       => htmlentities($url, ENT_QUOTES),
+							'url'       => $encoded_url,
 							'ext'       => $ext,
 							'host'      => $host,
 							'status'    => 0,
