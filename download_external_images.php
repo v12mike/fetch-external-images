@@ -78,6 +78,7 @@ while ($row = $db->sql_fetchrow($result))
 	$local_file_name = md5("$url");
 	$file_path = FILE_SAVE_PATH . $local_file_name;
     $file_ext = $row['ext'];
+<<<<<<< HEAD
 
 	// fix for data created in earlier version of scripts with leading '.' in the ext
 	if (!strncmp($file_ext, '.', 1))
@@ -87,12 +88,15 @@ while ($row = $db->sql_fetchrow($result))
 			);
 		$db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE .' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . ' WHERE ext_image_id = ' . $image_id);
 	}
+=======
+>>>>>>> db804609111bf7628b42c91648978c8a9d12511e
 	if ((strpos($url, URL_FILTER) === false))
 	{
 		echo("Ignoring bad url: $url\n");
 	}
     else
     {
+<<<<<<< HEAD
 
 		// temporary
    /*     if (file_exists($file_path . $file_ext))
@@ -103,14 +107,22 @@ while ($row = $db->sql_fetchrow($result))
 		{
 			rename($file_path . '..' . $file_ext, $file_path . '.' . $file_ext);
 		}*/
+=======
+>>>>>>> db804609111bf7628b42c91648978c8a9d12511e
         if (FILE_NAMES_WITH_EXTENSION)
         {
             // handle case where file previously downloaded and saved without file extension
             if (file_exists($file_path))
             {
+<<<<<<< HEAD
                 rename($file_path, $file_path . '.' . $file_ext);
             }
             $file_path = $file_path . '.' . $file_ext;
+=======
+                rename($file_path, $file_path . $file_ext);
+            }
+            $file_path = $file_path . $file_ext;
+>>>>>>> db804609111bf7628b42c91648978c8a9d12511e
         }
         if (file_exists($file_path))
         {
