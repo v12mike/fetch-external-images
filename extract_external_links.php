@@ -16,7 +16,7 @@ define('IN_PHPBB', true);
 define('EXTERNAL_IMAGES_TABLE',				$table_prefix . 'external_images');
 define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 define('MAX_URL_LEN',				500);
-define('SUPPORT_PHPBB_31_FORMAT',	0);
+define('SUPPORT_PHPBB_31_FORMAT',	1);
 
 	// Name of script - change if you use a different name for the script
 	$scriptname = 'extract_external_links.php';
@@ -103,7 +103,7 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 			$db->sql_freeresult($res);
             if (SUPPORT_PHPBB_31_FORMAT)
             {
-                // check for image links in the first format
+                // check for image links in the phpBB v3.1.x format
                 $post_text = html_entity_decode($post_text, ENT_QUOTES);
                 if (preg_match_all('~\[img:([^\]]+?)\](http[^\/]+?\/\/([^\[|^\/]+?)\/[^\.]+?\.([a-z]+?))\[\/img:\1\]~i', $post_text, $matches))
                 {
@@ -163,9 +163,9 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
                     }
                 }
             }
-			// check for image links in the second format
+			// check for image links in the phpBB v3.2.x format
 			$post_text = html_entity_decode($post_text, ENT_QUOTES);
-			if (preg_match_all('~<img src=\"(http[^\/]+?\/\/([^\/]+)?\/.+?[^\.]+?(\.[a-z]+?))\">~i', $post_text, $matches))
+			if (preg_match_all('~<img src=\"(http[^\/]+?\/\/([^\/]+)?\/.+?[^\.]+?\.([a-z]+?))\">~i', $post_text, $matches))
 			{
 				$num_links = count($matches[0]);
 				for ($loop = 0; $loop < $num_links; $loop++)
@@ -177,17 +177,14 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 					$host = $matches[2][$loop];
 					$ext = $matches[3][$loop];
 					
-                    $encoded_url = htmlentities($url, ENT_QUOTES);
 					// skip this link if url exceeds database capacity
-					$test = strlen($encoded_url);
-                    $test2 = mb_strlen($encoded_url, "UTF-8");
-					if (strlen($encoded_url) > MAX_URL_LEN)
+					if (strlen($url) > MAX_URL_LEN)
                     {
                         echo('X');
 						continue;
                     }
 					// See if the image url is already in the database
-					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $encoded_url . '\'';
+					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $url . '\'';
 					$result3 = $db->sql_query_limit($sql, 1);
 					if ($row = $db->sql_fetchrow($result3))
 					{

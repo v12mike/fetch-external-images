@@ -30,8 +30,11 @@ define('SKIP_BAD_SERVER',	1);
 define('SKIP_PREVIOUS_404',	1);
 // delete some suspected bad exisitng files (caution)
 define('ALLOW_FILE_DELETION',	0);
+// save image files with original extension (recommended)
+define('FILE_NAMES_WITH_EXTENSION',	1);
 // Name of script - change if you use a different name for the script
 $scriptname = 'download_external_images.php';
+
 if (!file_exists(FILE_SAVE_PATH))
 {
 	mkdir(FILE_SAVE_PATH, 755);
@@ -74,12 +77,41 @@ while ($row = $db->sql_fetchrow($result))
 	$size = $row['size'];
 	$local_file_name = md5("$url");
 	$file_path = FILE_SAVE_PATH . $local_file_name;
+    $file_ext = $row['ext'];
+
+	// fix for data created in earlier version of scripts with leading '.' in the ext
+	if (!strncmp($file_ext, '.', 1))
+	{
+		$sql_ary = array(
+			'ext'		=> (string) ltrim($file_ext, '.')
+			);
+		$db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE .' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . ' WHERE ext_image_id = ' . $image_id);
+	}
 	if ((strpos($url, URL_FILTER) === false))
 	{
 		echo("Ignoring bad url: $url\n");
 	}
     else
     {
+
+		// temporary
+   /*     if (file_exists($file_path . $file_ext))
+		{
+			rename($file_path . $file_ext, $file_path . '.' . $file_ext);
+		}
+        if (file_exists($file_path . '..' . $file_ext))
+		{
+			rename($file_path . '..' . $file_ext, $file_path . '.' . $file_ext);
+		}*/
+        if (FILE_NAMES_WITH_EXTENSION)
+        {
+            // handle case where file previously downloaded and saved without file extension
+            if (file_exists($file_path))
+            {
+                rename($file_path, $file_path . '.' . $file_ext);
+            }
+            $file_path = $file_path . '.' . $file_ext;
+        }
         if (file_exists($file_path))
         {
             if ($status != 200) 
