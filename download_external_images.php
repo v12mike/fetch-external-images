@@ -82,8 +82,9 @@ while ($row = $db->sql_fetchrow($result))
 	// fix for data created in earlier version of scripts with leading '.' in the ext
 	if (!strncmp($file_ext, '.', 1))
 	{
+		$file_ext = ltrim($file_ext, '.');
 		$sql_ary = array(
-			'ext'		=> (string) ltrim($file_ext, '.')
+			'ext'		=> (string) $file_ext
 			);
 		$db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE .' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . ' WHERE ext_image_id = ' . $image_id);
 	}
