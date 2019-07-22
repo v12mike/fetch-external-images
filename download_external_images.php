@@ -16,7 +16,7 @@ define('FILE_SAVE_PATH',					$phpbb_root_path . '/images/ext/');
 // Reject small files, as they are probably failure icons or notices
 define('MINIMUM_FILE_SIZE', 				3000);
 // Specify the number of downloads to handle in one run - reduce if you receive a timeout from server
-define('MAXIMUM_FILES_TO_FETCH', 			10000);
+define('MAXIMUM_FILES_TO_FETCH', 			50000);
 // number of redirects: set to 0 for no redirects (recommended) or 10 to allow redirects
 define('MAXIMUM_REDIRECTS', 				10);
 // only images with a url containing this string will be downloaded
@@ -93,16 +93,6 @@ while ($row = $db->sql_fetchrow($result))
 	}
     else
     {
-
-		// temporary
-   /*     if (file_exists($file_path . $file_ext))
-		{
-			rename($file_path . $file_ext, $file_path . '.' . $file_ext);
-		}
-        if (file_exists($file_path . '..' . $file_ext))
-		{
-			rename($file_path . '..' . $file_ext, $file_path . '.' . $file_ext);
-		}*/
         if (FILE_NAMES_WITH_EXTENSION)
         {
             // handle case where file previously downloaded and saved without file extension
