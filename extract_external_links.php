@@ -21,7 +21,7 @@ define('SUPPORT_PHPBB_31_FORMAT',	1);
 	// Name of script - change if you use a different name for the script
 	$scriptname = 'extract_external_links.php';
 	// Specify the number of attachments to handle in one run - reduce if you receive a timeout from server
-	$interval = 50000;
+	$interval = 20000;
 	// create the database tables if they don't exist
 	$sql = 'CREATE TABLE IF NOT EXISTS ' . EXTERNAL_IMAGE_LINKS_TABLE . ' (
 		ext_link_id INTEGER PRIMARY KEY AUTO_INCREMENT,
