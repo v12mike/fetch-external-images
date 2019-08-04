@@ -196,7 +196,7 @@ define('SUPPORT_PHPBB_31_FORMAT',	1);
 						$db->sql_freeresult($result3);
 						// add it
 						$sql = 'INSERT INTO ' . EXTERNAL_IMAGES_TABLE . $db->sql_build_array('INSERT', array(
-							'url'       => $encoded_url,
+							'url'       => $url,
 							'ext'       => $ext,
 							'host'      => $host,
 							'status'    => 0,
