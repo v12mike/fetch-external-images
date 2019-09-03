@@ -16,7 +16,7 @@ define('IN_PHPBB', true);
 define('EXTERNAL_IMAGES_TABLE',				$table_prefix . 'external_images');
 define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
 define('MAX_URL_LEN',				500);
-define('SUPPORT_PHPBB_31_FORMAT',	1);
+define('SUPPORT_PHPBB_31_FORMAT',	0);
 
 	// Name of script - change if you use a different name for the script
 	$scriptname = 'extract_external_links.php';
