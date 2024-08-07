@@ -231,7 +231,7 @@ function fetch_file($link, &$redirect_count, &$status)
 		curl_setopt($c, CURLOPT_MAXREDIRS, MAXIMUM_REDIRECTS); 
 		curl_setopt($c, CURLOPT_FOLLOWLOCATION, CURL_FOLLOW_REDIRECTS);
 		curl_setopt($c, CURLOPT_CONNECTTIMEOUT, 9);
-		curl_setopt($c, CURLOPT_REFERER, $url);    
+		curl_setopt($c, CURLOPT_REFERER, $link);    
 		curl_setopt($c, CURLOPT_TIMEOUT, 60);
 		curl_setopt($c, CURLOPT_AUTOREFERER, true);  
 		curl_setopt($c, CURLOPT_ENCODING, 'gzip,deflate');

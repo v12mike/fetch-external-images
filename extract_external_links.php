@@ -59,7 +59,7 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 	$links_added = 0;
 	$images_added = 0;
 	$post_id = 0;
-	echo("Candidate posts to check=$posts_count, maximum number to check each run=$interval, starting after post_id=$last_post_id\n");
+	echo("Posts with external links=$posts_count, maximum number to check per run=$interval, starting after post_id=$last_post_id\n");
 	// read required information from posts table
     if (SUPPORT_PHPBB_31_FORMAT)
     {
@@ -72,7 +72,7 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 	$posts_result = $db->sql_query_limit($sql, $interval);
 	// how many in this run?
 	$actual_num = $db->sql_affectedrows($posts_result);
-	echo("Actual posts to check=$actual_num\n");
+	echo("Actual posts to this run=$actual_num\n");
 	if ($actual_num == 0)
 	{
 		// nothing to do
