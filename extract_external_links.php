@@ -124,6 +124,13 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
                             echo('X');
                             continue;
                         }
+
+						// skip this link if extension is too long
+						if (strlen($ext) > 10)
+						{
+							echo('X');
+							continue;
+						}
                         // See if the image url is already in the database
                         $sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . htmlentities($url, ENT_QUOTES) . '\'';
                         $result1 = $db->sql_query_limit($sql, 1);
@@ -183,6 +190,14 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
                         echo('X');
 						continue;
                     }
+
+					
+					// skip this link if extension is too long
+					if (strlen($ext) > 10)
+					{
+						echo('X');
+						continue;
+					}
 					// See if the image url is already in the database
 					$sql = 'SELECT ext_image_id FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE url LIKE \'' . $url . '\'';
 					$result3 = $db->sql_query_limit($sql, 1);
