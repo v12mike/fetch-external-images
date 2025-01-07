@@ -21,7 +21,7 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 	// Name of script - change if you use a different name for the script
 	$scriptname = 'extract_external_links.php';
 	// Specify the number of attachments to handle in one run - reduce if you receive a timeout from server
-	$interval = 20000;
+	$interval = 300000;
 	// create the database tables if they don't exist
 	$sql = 'CREATE TABLE IF NOT EXISTS ' . EXTERNAL_IMAGE_LINKS_TABLE . ' (
 		ext_link_id INTEGER PRIMARY KEY AUTO_INCREMENT,
@@ -50,6 +50,9 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 		$last_post_id = 0;
 		set_config('last_ext_image_post_id', 0);
 	}
+
+	$last_post_id = 395288;
+
 	// count number of posts with external links to process
 	$sql = 'SELECT COUNT(post_id) AS num_attach FROM ' . POSTS_TABLE . ' WHERE post_id > ' . (int)$last_post_id . ' AND (LOWER(post_text) LIKE (\'%[img:%]http%\') OR LOWER(post_text) LIKE \'%<img %src=\"http%\' )';
 	$result = $db->sql_query($sql);
@@ -59,6 +62,7 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 	$links_added = 0;
 	$images_added = 0;
 	$post_id = 0;
+
 	echo("Posts with external links=$posts_count, maximum number to check per run=$interval, starting after post_id=$last_post_id\n");
 	// read required information from posts table
     if (SUPPORT_PHPBB_31_FORMAT)
@@ -94,15 +98,23 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 			$post_text = $row['post_text'];
 			// Check to see if this post has already been done
 			$sql = 'SELECT COUNT(post_id) AS post_done FROM ' . EXTERNAL_IMAGE_LINKS_TABLE .' WHERE post_id = ' . (int) $post_id ;
+			
+			//echo ("$sql \n");
+			
+			echo ("post_id: $post_id ----------\n");
+
 			$res = $db->sql_query($sql);
 			if ($db->sql_fetchfield('post_done', false, $res))
 			{
-				echo(' ');
-				continue;
+				echo("post_done: $post_id\n");
+				//continue;
 			}
+
+			
 			$db->sql_freeresult($res);
             if (SUPPORT_PHPBB_31_FORMAT)
             {
+				echo("SUPPORT_PHPBB_31_FORMAT");
                 // check for image links in the phpBB v3.1.x format
                 $post_text = html_entity_decode($post_text, ENT_QUOTES);
                 if (preg_match_all('~\[img:([^\]]+?)\](http[^\/]+?\/\/([^\[|^\/]+?)\/[^\.]+?\.([a-z]+?))\[\/img:\1\]~i', $post_text, $matches))
@@ -160,6 +172,11 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
                             }
                             $db->sql_freeresult($result2);
                         }
+						if ($post_id == '1527705')
+						{
+							echo('1527705 found 3.1\n');
+						}
+	
                         $sql = 'INSERT INTO ' . EXTERNAL_IMAGE_LINKS_TABLE . $db->sql_build_array('INSERT', array(
                             'ext_image_id'  => $image_id,
                             'orig_link' => $link,
@@ -172,18 +189,29 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
             }
 			// check for image links in the phpBB v3.2.x format
 			$post_text = html_entity_decode($post_text, ENT_QUOTES);
-			if (preg_match_all('~<img src=\"(http[^\/]+?\/\/([^\/]+)?\/.+?[^\.]+?\.([a-z]+?))\">~i', $post_text, $matches))
-			{
+			//echo ("got post text \n");
+			if (preg_match_all('~<img src=\"(http[^\/]+?\/\/([^\/]+)?\/.+?[^\.]+?\.([a-z]+?))(\?.*?)?\">~i', $post_text, $matches)) {
 				$num_links = count($matches[0]);
-				for ($loop = 0; $loop < $num_links; $loop++)
-				{
+				echo ("num_links: $num_links\n");
+				for ($loop = 0; $loop < $num_links; $loop++) {
 					$stat++;
 					$links_found++;
-					$link = $matches[0][$loop]; 
-					$url = $matches[1][$loop];
+					$link = $matches[0][$loop];
+					$url = $matches[1][$loop]; // URL without query string
 					$host = $matches[2][$loop];
 					$ext = $matches[3][$loop];
+					$query = $matches[4][$loop];
+
+					// echo (" link: $link\n");
+					// echo ("  url: $url\n");
+					// echo (" host: $host\n");
+					// echo ("  ext: $ext\n");
+					// echo ("query: $query\n");
 					
+					// Put the query string back - otherwise we actually DL a different (larger) image than intended
+					$url = $url . $query;
+					// echo ("***url: $url\n");
+
 					// skip this link if url exceeds database capacity
 					if (strlen($url) > MAX_URL_LEN)
                     {
@@ -191,7 +219,6 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 						continue;
                     }
 
-					
 					// skip this link if extension is too long
 					if (strlen($ext) > 10)
 					{
@@ -227,6 +254,10 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 						}
 						$db->sql_freeresult($result4);
 					}
+					if ($post_id == '1527705')
+					{
+						echo('1527705 found 3.1\n');
+					}
 					$sql = 'INSERT INTO ' . EXTERNAL_IMAGE_LINKS_TABLE . $db->sql_build_array('INSERT', array(
 						'ext_image_id'  => $image_id,
 						'orig_link' => $link,
@@ -251,6 +282,9 @@ define('SUPPORT_PHPBB_31_FORMAT',	0);
 			{
 				echo('.');
 			}
+
+			set_config('last_ext_image_post_id', $post_id);
+
 		}
 		$db->sql_freeresult($posts_result);
 		// write last attachment id in config

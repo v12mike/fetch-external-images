@@ -1,301 +1,361 @@
 <?php
 /**
-* This script will re-generate all thumbnails for attachments from the attachment folder (default
-* "files"), useful after changing the thumbnail width (= longest edge) via acp
-*/
+ * This script will re-generate all thumbnails for attachments from the attachment folder.
+ */
+
 /**
-* @ignore
-*/
+ * @ignore
+ */
 define('IN_PHPBB', true);
 $phpbb_root_path = (defined('PHPBB_ROOT_PATH')) ? PHPBB_ROOT_PATH : '../';
 $phpEx = substr(strrchr(__FILE__, '.'), 1);
 include($phpbb_root_path . 'common.' . $phpEx);
-define('EXTERNAL_IMAGES_TABLE',				$table_prefix . 'external_images');
-define('EXTERNAL_IMAGE_LINKS_TABLE',		$table_prefix . 'external_image_links');
-define('FILE_SAVE_PATH',					$phpbb_root_path . '/images/ext/');	
-// Reject small files, as they are probably failure icons or notices
-define('MINIMUM_FILE_SIZE', 				3000);
-// Specify the number of downloads to handle in one run - reduce if you receive a timeout from server
-define('MAXIMUM_FILES_TO_FETCH', 			50000);
-// number of redirects: set to 0 for no redirects (recommended) or 10 to allow redirects
-define('MAXIMUM_REDIRECTS', 				10);
-// only images with a url containing this string will be downloaded
-define('URL_FILTER', 				'http');				// any host
-//define('URL_FILTER', 				'.photobucket.com/');	// only photobucket.com
-// if 0, redirects handled by script, not curl
-define('CURL_FOLLOW_REDIRECTS',	0);
-// Do not retry servers that don't respond to curl
-define('SKIP_BAD_SERVER',	1);
-// Do not retry files marked as status 404
-define('SKIP_PREVIOUS_404',	1);
-// delete some suspected bad exisitng files (caution)
-define('ALLOW_FILE_DELETION',	0);
-// save image files with original extension (recommended)
-define('FILE_NAMES_WITH_EXTENSION',	1);
-// Name of script - change if you use a different name for the script
-$scriptname = 'download_external_images.php';
 
-if (!file_exists(FILE_SAVE_PATH))
-{
-	mkdir(FILE_SAVE_PATH, 755);
-}
-// read id of last image downloaded
-if (isset($config['last_dl_image_id']))
-{
-    $last_image_id = $config['last_dl_image_id'];
-}
-else
-{
-    $last_image_id = 0;
-    set_config('last_dl_image_id', 0);
-}
-$bad_servers = array();
+define('EXTERNAL_IMAGES_TABLE', $table_prefix . 'external_images');
+define('EXTERNAL_IMAGE_LINKS_TABLE', $table_prefix . 'external_image_links');
+define('FILE_SAVE_PATH', $phpbb_root_path . '/images/ext/');
+define('MINIMUM_FILE_SIZE', 1024);
+define('MAXIMUM_FILES_TO_FETCH', 500000);
+define('MAXIMUM_REDIRECTS', 10);
+define('CURL_FOLLOW_REDIRECTS', 0);
+define('SKIP_BAD_SERVER', 1);
+define('SKIP_PREVIOUS_4XX', 1);
+define('ALLOW_FILE_DELETION', 1);
+define('FILE_NAMES_WITH_EXTENSION', 1);
+define('EXTERNAL_URL_BASE', 'https://mye28.z13.web.core.windows.net/external/');
 
-$sql = 'SELECT * FROM ' . EXTERNAL_IMAGES_TABLE .' WHERE ext_image_id > ' . (int) $last_image_id . ' ORDER BY ext_image_id ASC';
-$result = $db->sql_query_limit($sql, MAXIMUM_FILES_TO_FETCH);
-$actual_num = $db->sql_affectedrows($result);
-if ($actual_num == 0)
-{
-	// nothing to do
-	$complete = true;
-}
-else
-{
-	$complete = false;
-	if ($actual_num < MAXIMUM_FILES_TO_FETCH)
-	{
-		// this is the last run
-		$complete = true;
-	}
-}
-while ($row = $db->sql_fetchrow($result))
-{
-	$image_id = $row['ext_image_id'];
-	$url = $row['url'];
-	$host = $row['host'];
-	$status = $row['status'];
-	$size = $row['size'];
-	$local_file_name = md5("$url");
-	$file_path = FILE_SAVE_PATH . $local_file_name;
-    $file_ext = $row['ext'];
+// Parse command-line arguments
+$options = getopt('', ['last_image_id:', 'url_filter:', 'log_level:']);
+$last_image_id = isset($options['last_image_id']) ? (int)$options['last_image_id'] : null;
+$url_filter = isset($options['url_filter']) ? $options['url_filter'] : null;
+$log_level = isset($options['log_level']) ? strtolower($options['log_level']) : 'normal';
 
-	// fix for data created in earlier version of scripts with leading '.' in the ext
-	if (!strncmp($file_ext, '.', 1))
-	{
-		$file_ext = ltrim($file_ext, '.');
-		$sql_ary = array(
-			'ext'		=> (string) $file_ext
-			);
-		$db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE .' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . ' WHERE ext_image_id = ' . $image_id);
-	}
-	if ((strpos($url, URL_FILTER) === false))
-	{
-		echo("Ignoring bad url: $url\n");
-	}
-    else
-    {
-        if (FILE_NAMES_WITH_EXTENSION)
-        {
-            // handle case where file previously downloaded and saved without file extension
-            if (file_exists($file_path))
-            {
-                rename($file_path, $file_path . '.' . $file_ext);
-            }
-            $file_path = $file_path . '.' . $file_ext;
-        }
-        if (file_exists($file_path))
-        {
-            if ($status != 200) 
-            {
-                if (ALLOW_FILE_DELETION)
-                {
-            		unlink($file_path);
-            		echo("DELETED BAD STATUS existing file status $status for $url \n");
-                }
-                else
-                {
-                    echo("BAD STATUS existing file status $status for $url \n");
-                }
-            }
-            else
-            {
-                $finfo = finfo_open(FILEINFO_MIME_TYPE); // return mime type ala mimetype extension
-                $mime_type = finfo_file($finfo, $file_path);
-                finfo_close($finfo);
-                $temp = strpos($mime_type, 'image/');
-                if ((strpos($mime_type, 'image/') !== 0))
-                {
-                    if (ALLOW_FILE_DELETION)
-                    {
-                        unlink($file_path);
-                       	echo("DELETED BAD MIME_TYPE $mime_type existing file $url \n");
-                    }
-                    else
-                    {
-                        echo("BAD MIME_TYPE $mime_type existing file $url \n");
-                    }
-                }
-            }
-        }
-        if (!file_exists($file_path)) 
-        {
-            if (SKIP_BAD_SERVER && (in_array(get_host($url), $bad_servers)))
-            {
-                echo("status bad server: $url\n");
-            }
-            else if (SKIP_PREVIOUS_404 && ($status == 404))
-            {
-                echo("skip file previous 404: $url\n");
-            }
-            else
-            {
-                $redirect_count = 0;
-                $data = fetch_file($url, $redirect_count, $status);
-                if ($redirect_count)
-                {
-                    echo("redirect count: $redirect_count, ");
-                }
-                // if not "status 200" page, then error..
-                if ( $status['http_code'] != 200 ) 
-                { 
-                    $data = "ERRORCODE22 with $url<br/><br/>Last status codes:".json_encode($status)."<br/><br/>Last data got:$data";
-                }
-                $fetch_result = $data; 
-                $download_status = $status['http_code'];
-                $size = $status['size_download'];
-                if ($download_status == 200)
-                {
-                    $finfo = new finfo(FILEINFO_MIME);
-                    $mime_type = $finfo->buffer($data);
-                    if ((strpos($mime_type, 'image/') !== 0))
-                    {
-                        echo("status OK $download_status : but bad mime-type: $mime_type : $url\n");
-                    }
-                    elseif ($size < MINIMUM_FILE_SIZE)
-                    {
-                        echo("status OK $download_status : but file too small $size : $url\n");
-                    }
-                    else
-                    {
-                        // save our local copy of the file
-                        file_put_contents($file_path, $data);
-                        echo("status OK $download_status for $image_id : $url\n");
-                    }
-                }
-                else
-                {
-                    echo("status $download_status FAIL : $url\n");
-                }
-                $sql_ary = array(
-                    'status'	=> (string) $download_status,
-                    'file'		=> (string) $local_file_name,
-                    'size'		=> (int) $size,
-                    );
-                $db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE .' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . ' WHERE ext_image_id = ' . $image_id);
-                if ($download_status == 0)
-                {
-                    /* no response from the server, so don't try it for other files... */
-                    $bad_servers[] = get_host($url);
-                }
-            }
-        }
-        else
-        {
-            echo("existing file ID $image_id, status $status, size $size, for $url \n");
-        }
+// Validate log level
+$valid_log_levels = ['normal', 'trace', 'debug'];
+if (!in_array($log_level, $valid_log_levels)) {
+    echo "Invalid log level. Valid levels are: " . implode(', ', $valid_log_levels) . "\n";
+    exit(1);
+}
+
+// Set defaults if command-line arguments are not provided
+if ($last_image_id === null) {
+    if (isset($config['last_dl_image_id'])) {
+        $last_image_id = $config['last_dl_image_id'];
+    } else {
+        $last_image_id = 0;
+        set_config('last_dl_image_id', 0);
     }
 }
-$db->sql_freeresult($result);
-// write last attachment id in config
-if ($complete)
-{
-	$last_image_id = 0;
-	set_config('last_dl_image_id', 0);
-	echo("All Done!!");
-}
-else
-{
-	set_config('last_dl_image_id', $image_id);
-	echo("More to do, please run the script again\n\nS");
+
+if ($url_filter === null) {
+    define('URL_FILTER', '');
+} else {
+    define('URL_FILTER', $url_filter);
 }
 
-function fetch_file($link, &$redirect_count, &$status)
-{
-		$c = curl_init();
-        curl_setopt($c, CURLOPT_URL, $link);
-		curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($c, CURLOPT_SSL_VERIFYHOST,false);                  
-		curl_setopt($c, CURLOPT_SSL_VERIFYPEER,false);
-		curl_setopt($c, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.1; rv:33.0) Gecko/20100101 Firefox/33.0"); 
-		curl_setopt($c, CURLOPT_COOKIE, 'CookieName1=Value;');
-		curl_setopt($c, CURLOPT_MAXREDIRS, MAXIMUM_REDIRECTS); 
-		curl_setopt($c, CURLOPT_FOLLOWLOCATION, CURL_FOLLOW_REDIRECTS);
-		curl_setopt($c, CURLOPT_CONNECTTIMEOUT, 9);
-		curl_setopt($c, CURLOPT_REFERER, $link);    
-		curl_setopt($c, CURLOPT_TIMEOUT, 60);
-		curl_setopt($c, CURLOPT_AUTOREFERER, true);  
-		curl_setopt($c, CURLOPT_ENCODING, 'gzip,deflate');
-		$data=curl_exec($c);
-		$status=curl_getinfo($c);
-		curl_close($c);
-		preg_match('/(http(|s)):\/\/(.*?)\/(.*\/|)/si',  $status['url'],$link);	
-		//correct assets URLs(i.e. retrieved url is: http://site.com/DIR/SUBDIR/page.html... then href="./image.JPG" becomes href="http://site.com/DIR/SUBDIR/image.JPG", but  href="/image.JPG" needs to become href="http://site.com/image.JPG")
-		//inside all links(except starting with HTTP,javascript:,HTTPS,//,/ ) insert that current DIRECTORY url (href="./image.JPG" becomes href="http://site.com/DIR/SUBDIR/image.JPG")
-		$data=preg_replace('/(src|href|action)=(\'|\")((?!(http|https|javascript:|\/\/|\/)).*?)(\'|\")/si','$1=$2'.$link[0].'$3$4$5', $data);     
-		//inside all links(except starting with HTTP,javascript:,HTTPS,//)    insert that DOMAIN url (href="/image.JPG" becomes href="http://site.com/image.JPG")
-		$data=preg_replace('/(src|href|action)=(\'|\")((?!(http|https|javascript:|\/\/)).*?)(\'|\")/si','$1=$2'.$link[1].'://'.$link[3].'$3$4$5', $data);   
-		// if redirected, then get that redirected page
-		if($status['http_code']==301 || $status['http_code']==302) 
-		{
-			//if we FOLLOWLOCATION was not allowed, then re-get REDIRECTED URL
-			//p.s. WE dont need "else", because if FOLLOWLOCATION was allowed, then we wouldnt have come to this place, because 301 could already auto-followed by curl  :)
-			if (!CURL_FOLLOW_REDIRECTS && ($redirect_count < MAXIMUM_REDIRECTS))
-			{
-				//if REDIRECT URL is found in HEADER
-				if(empty($redirURL))
-                {
-                    if(!empty($status['redirect_url']))
-                    {
-                        $redirURL=$status['redirect_url'];
+$scriptname = 'download_external_images.php';
+
+if (!file_exists(FILE_SAVE_PATH)) {
+    mkdir(FILE_SAVE_PATH, 0755, true);
+}
+
+$bad_servers = [];
+
+$sql = 'SELECT * FROM ' . EXTERNAL_IMAGES_TABLE .
+    ' WHERE (ext_image_id > ' . (int)$last_image_id .
+    ' AND host LIKE \'%' . addslashes(URL_FILTER) . '%\')' .
+    ' ORDER BY ext_image_id ASC';
+
+script_log('normal', null, null, "Starting. Query = ", $sql);
+
+$total_images = $db->sql_affectedrows($db->sql_query($sql));
+$result = $db->sql_query_limit($sql, MAXIMUM_FILES_TO_FETCH);
+$actual_num = $db->sql_affectedrows($result);
+
+script_log('normal', null, null, "  Fetching rows", "$actual_num, starting at image_id $last_image_id");
+
+if ($actual_num == 0) {
+    $complete = true;
+} else {
+    $complete = false;
+    if ($actual_num < MAXIMUM_FILES_TO_FETCH) {
+        $complete = true;
+        script_log('normal', null, null, "  Last run", "");
+    }
+}
+
+$downloaded_this_run = 0;
+
+while ($row = $db->sql_fetchrow($result)) {
+    $image_id = $row['ext_image_id'];
+    set_config('last_dl_image_id', $image_id);
+
+    $url = $row['url'];
+    $host = $row['host'];
+    $status = $row['status'];
+    $size = $row['size'];
+    $local_file_name = md5("$url");
+    $file_path = FILE_SAVE_PATH . $local_file_name;
+    $file_ext = $row['ext'];
+
+    // Fix for data created in earlier versions of scripts with leading '.' in the ext
+    if (!strncmp($file_ext, '.', 1)) {
+        script_log('debug', $image_id, $host, "  Fix data created in earlier versions of script", $url);
+        $file_ext = ltrim($file_ext, '.');
+        $sql_ary = array(
+            'ext' => (string)$file_ext
+        );
+        $db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE . ' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . ' WHERE ext_image_id = ' . $image_id);
+    }
+
+    script_log('debug', $image_id, $host, "Processing URL", "$file_path, $url");
+
+    if ((strpos($url, URL_FILTER) === false)) {
+        script_log('debug', $image_id, $host, "  Skipping filtered URL", $url);
+        if ($log_level == 'normal'){
+            echo (" ");
+        }    
+        $last_image_id = $image_id;
+        continue;
+    }
+
+    // Deal with cases where the file already exists and might need to be deleted
+    if (file_exists($file_path)) {
+        if ($status != 200) {
+            if (ALLOW_FILE_DELETION) {
+                unlink($file_path);
+                script_log('trace', $image_id, $host, "  DELETED BAD STATUS", "$status, $url");
+            } elseif ($status == 0) {
+                unlink($file_path);
+                script_log('trace', $image_id, $host, "  STATUS 0 for existing file. Deleted and retrying", $url);
+            } else {
+                script_log('trace', $image_id, $host, "  BAD STATUS", "$status, $url");
+            }
+        } else {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime_type = finfo_file($finfo, $file_path);
+            finfo_close($finfo);
+            if ((strpos($mime_type, 'image/') !== 0)) {
+                if (ALLOW_FILE_DELETION) {
+                    unlink($file_path);
+                    script_log('trace', $image_id, $host, "  DELETED BAD MIME_TYPE", "$mime_type, $url");
+                } else {
+                    script_log('trace', $image_id, $host, "  BAD MIME_TYPE", "$mime_type, $url");
+                }
+            }
+        }
+    }
+
+    if (!file_exists($file_path)) {
+        if (SKIP_BAD_SERVER && (in_array($host, $bad_servers)))
+        {
+            script_log('trace', $image_id, $host, "  Skipping - Bad Server", "$url");
+            if ($log_level == 'normal'){
+                echo ("b");
+            }   
+        }
+        else if (SKIP_PREVIOUS_4XX && ($status >= 400 && $status <= 499))
+        {
+            script_log('trace', $image_id, $host, "  Skipping - Previous 4xx status", "$url");
+            if ($log_level == 'normal'){
+                echo ("4");
+            }   
+        } 
+        else 
+        {        
+            script_log('debug', $image_id, $host, "  Fetching ", "status = $status, $url");
+
+            $redirect_count = 0;
+            $data = fetch_file($url, $redirect_count, $status);
+
+            if ($redirect_count) {
+                script_log('trace', $image_id, $host, "  Redirect count", "$redirect_count, $url");
+            }
+
+            if ($status['http_code'] != 200) {
+                // Put bogus data in data
+                $data = "$url: " . $status['http_code'];
+                script_log('debug', $image_id, $host, "  fetch_file failed", $data);
+            }
+
+            $fetch_result = $data;
+            $download_status = $status['http_code'];
+            $size = $status['size_download'];
+
+            if ($download_status == 200) {
+                $finfo = new finfo(FILEINFO_MIME);
+                $mime_type = strtolower($finfo->buffer($data));
+
+                if ((strpos($mime_type, 'image/') !== 0)) {
+                    script_log('trace', $image_id, $host, "  OK but BAD MIME-TYPE", "$mime_type, $url");
+                    if ($log_level == 'normal'){
+                        echo ("m");
+                    }   
+                } elseif ($size < MINIMUM_FILE_SIZE) {
+                    script_log('trace', $image_id, $host, "  OK but FILE TOO SMALL", "$size, $url");
+                    if ($log_level == 'normal'){
+                        echo ("s");
+                    }   
+                } else {
+                    // Determine file extension from MIME type if not already set
+                    if (empty($file_ext)) {
+                        $mime_to_ext = [
+                            'image/jpeg' => 'jpg',
+                            'image/png' => 'png',
+                            'image/gif' => 'gif',
+                            // Add more mappings as needed
+                        ];
+                        $file_ext = $mime_to_ext[$mime_type] ?? '';
                     }
-                }
-                //if REDIRECT URL is found in RESPONSE
-                if(empty($redirURL))
-                {
-                    preg_match('/(Location:|URI:)(.*?)(\r|\n)/si', $data, $m);
-                    if (!empty($m[2]))
-                    { 
-                        $redirURL=$m[2]; 
-                    } 
-                }
-				//if REDIRECT URL is found in OUTPUT
-                if(empty($redirURL))
-                {
-                    preg_match('/moved\s\<a(.*?)href\=\"(.*?)\"(.*?)here\<\/a\>/si',$data,$m); 
-                    if (!empty($m[1]))
-                    { 
-                        $redirURL=$m[1]; 
-                    } 
-                }
-				//if URL found, then re-use this function again, for the found url
-                if(!empty($redirURL))
-                {
-                    $t=debug_backtrace();
-					/* recursive call to follow redirect */
-					$redirect_count++;
-					$data = fetch_file( trim($redirURL), $redirect_count, $status);
-				}
-			}
-		}
-		return $data;
-	}
 
-function get_host($url)
-{
-	$matches = array();
-	if (preg_match ('((https?:\/\/[^\/]+)\/)' , $url, $matches))
-	{
-		return $matches[1];
-	}
+                    // Create file with extension if determined
+                    $downloaded_this_run = $downloaded_this_run + 1;
+                    $file_path_with_ext = $file_path . ($file_ext ? '.' . $file_ext : '');
+                    file_put_contents($file_path_with_ext, $data);
+                    script_log('trace', $image_id, $host, "  Successfully downloaded", EXTERNAL_URL_BASE . $local_file_name . ($file_ext ? '.' . $file_ext : ''));
+                    if ($log_level == 'normal'){
+                        echo ("!");
+                    }   
+                    $last_image_id = $image_id;
+                    set_config('last_dl_image_id', $last_image_id);
+                }
+            } else {
+                script_log('trace', $image_id, $host, "  Download FAILED", "$download_status, $url");
+                if ($log_level == 'normal'){
+                    echo ("x");
+                }   
+            }
 
+            $sql_ary = array(
+                'status' => (string)$download_status,
+                'file' => (string)$local_file_name,
+                'size' => (int)$size,
+            );
+            $db->sql_query('UPDATE ' . EXTERNAL_IMAGES_TABLE . 
+                ' SET ' . $db->sql_build_array('UPDATE', $sql_ary) . 
+                ' WHERE ext_image_id = ' . $image_id);
+
+            if ($download_status == 0 || $download_status >= 500) {
+                $bad_server = $host;
+                $bad_servers[] = $bad_server;
+                script_log('trace', $image_id, $host, "  Added bad server", $bad_server);
+                if ($log_level == 'normal'){
+                    echo ("b");
+                }   
+            }
+    }
+    } else {
+        script_log('trace', $image_id, $host, "  File already exists", $file_path);
+        if ($log_level == 'normal'){
+            echo (".");
+        }    
+        $last_image_id = $image_id;
+        set_config('last_dl_image_id', $last_image_id);
+    }
+}
+
+$db->sql_freeresult($result);
+
+if ($complete) {
+    script_log('normal', null, null, "All Done ($downloaded_this_run downloaded; last image = $last_image_id)", "last_dl_image_id reset to 0.");
+    set_config('last_dl_image_id', 0);
+} else {
+    set_config('last_dl_image_id', $image_id);
+    script_log('normal', null, null, "More to do ($downloaded_this_run downloaded; at $last_image_id)", "Run the script again");
+}
+
+function script_log($level, $image_id, $host, $message, $details) {
+    global $log_level;
+
+    // Determine if the log should be written based on the current level
+    $levels = ['debug', 'trace', 'normal'];
+    if (array_search($log_level, $levels) > array_search($level, $levels)) {
+        return;
+    }
+
+    // // Shorten $details to a maximum of 40 characters, keeping at least the last 10
+    // if (strlen($details) > 80) {
+    //     $details = substr($details, 0, 30) . '...' . substr($details, -10);
+    // }
+
+    $output = "";
+    if ($image_id !== null) {
+        $output .= "$image_id, ";
+    }
+    if ($host !== null) {
+        $output .= "$host: ";
+    }
+    $output .= "$message - $details";
+
+    // Use error_log for logging
+    error_log($output);
+}
+
+function is_bad_url($url) {
+    // Check for invalid characters
+    if (preg_match('/[<>{}\[\]\^`\\]|["\']|[^\x20-\x7E]/', $url)) {
+        return true; // Contains invalid or suspicious characters
+    }
+
+    // Check for embedded HTML or BBCode tags
+    if (preg_match('/<[^>]+>|\[.*?\]/', $url)) {
+        return true; // Contains embedded HTML or BBCode
+    }
+
+    // Check for double protocols
+    if (preg_match('/https?:\/\/.*https?:\/\//i', $url)) {
+        return true; // Contains repeated protocol
+    }
+
+    // Validate URL structure
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return true; // Invalid URL structure
+    }
+
+    // Check for other suspicious patterns (e.g., unfinished encoding sequences)
+    if (preg_match('/%[^\dA-Fa-f]{2}|%[^\dA-Fa-f]?$/', $url)) {
+        return true; // Contains invalid percent-encoding
+    }
+
+    // If all checks pass, it's not a bad URL
+    return false;
+}
+
+
+function fetch_file($link, &$redirect_count, &$status) {
+    $c = curl_init();
+    curl_setopt($c, CURLOPT_URL, $link);
+    curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($c, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($c, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($c, CURLOPT_USERAGENT, "Mozilla/5.0");
+    curl_setopt($c, CURLOPT_MAXREDIRS, MAXIMUM_REDIRECTS);
+    curl_setopt($c, CURLOPT_FOLLOWLOCATION, CURL_FOLLOW_REDIRECTS);
+    curl_setopt($c, CURLOPT_CONNECTTIMEOUT, 5); 
+    curl_setopt($c, CURLOPT_TIMEOUT, 10); //timeout in seconds
+    $data = curl_exec($c);
+    $status = curl_getinfo($c);
+    curl_close($c);
+
+    if ($status['http_code'] == 0)
+    {
+        if (is_bad_url($link)){
+            $status['http_code'] = 400;
+            return $data;
+        }
+        if ($status['total_time_us'] > 100000){
+            $status['http_code'] = 504;
+            return $data;
+
+        }
+    }
+
+    return $data;
+}
+
+function get_host($url) {
+    $matches = [];
+    if (preg_match('((https?:\/\/[^\/]+)\/)', $url, $matches)) {
+        return $matches[1];
+    }
 }
